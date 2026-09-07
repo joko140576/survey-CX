@@ -1,0 +1,173 @@
+/**
+ * ============================================================================
+ *  CX SURVEY — FRM / PLM / HCC
+ *  Backend Google Apps Script (database: Google Sheets)
+ * ----------------------------------------------------------------------------
+ *  Cara pakai singkat (detail lengkap ada di README.md):
+ *   1. Buat/gunakan Google Sheet, buka Extensions > Apps Script.
+ *   2. Hapus isi default, tempel seluruh isi file ini, simpan.
+ *   3. Deploy > New deployment > jenis "Web app".
+ *        - Execute as     : Me
+ *        - Who has access : Anyone
+ *   4. Salin URL Web App yang dihasilkan, tempel ke CONFIG.GAS_URL di index.html.
+ *
+ *  Kenapa disebut "anti CORS":
+ *   Apps Script Web App TIDAK menangani request OPTIONS (preflight), sehingga
+ *   fetch() dari browser akan gagal jika request dianggap "non-simple"
+ *   (misalnya memakai header Content-Type: application/json).
+ *   Solusinya:
+ *   - Front-end mengirim POST dengan Content-Type: text/plain -> ini termasuk
+ *     "simple request", browser TIDAK mengirim preflight OPTIONS.
+ *   - Front-end membaca data lewat GET tanpa header custom -> juga "simple
+ *     request".
+ *   - Apps Script sendiri, saat konten dikembalikan lewat ContentService,
+ *     otomatis diperbolehkan dibaca lintas origin oleh Google selama tidak
+ *     ada header request kustom yang memicu preflight.
+ *   Dengan begitu, request POST dan GET dari domain manapun (termasuk file
+ *   HTML yang dibuka langsung dari komputer lokal) tetap bisa berjalan tanpa
+ *   error CORS, walaupun tanpa header CORS eksplisit yang bisa diatur manual
+ *   di ContentService.
+ * ============================================================================
+ */
+
+const SHEET_NAME = 'Responses';
+
+// Kunci divisi yang dikenali & dipakai untuk agregasi dashboard.
+const DIVISI_KEYS = ['FRM', 'PLM', 'HCC'];
+
+/**
+ * Menangani pengiriman jawaban survei (dipanggil oleh tombol "Kirim Survei").
+ * Body request berupa JSON:
+ * { unit: "...", role: "...", answers: [{ divisi, aspek, pertanyaan, rating }, ...] }
+ */
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      throw new Error('Tidak ada data yang dikirim.');
+    }
+    const data = JSON.parse(e.postData.contents);
+    if (!data.answers || !Array.isArray(data.answers) || data.answers.length === 0) {
+      throw new Error('Payload jawaban kosong atau tidak valid.');
+    }
+
+    const sheet = getOrCreateResponseSheet_();
+    const ts = new Date();
+    const respId = Utilities.getUuid();
+    const unit = data.unit || '';
+    const role = data.role || '';
+
+    const rows = data.answers.map(function (a) {
+      return [ts, respId, unit, role, a.divisi || '', a.aspek || '', a.pertanyaan || '', Number(a.rating) || ''];
+    });
+
+    // Tulis sekaligus (lebih cepat & mengurangi risiko lock/race condition
+    // dibanding appendRow satu per satu).
+    const startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, rows.length, rows[0].length).setValues(rows);
+
+    return jsonOutput_({ status: 'success', responseId: respId, saved: rows.length });
+  } catch (err) {
+    return jsonOutput_({ status: 'error', message: err.message });
+  }
+}
+
+/**
+ * Menangani permintaan data untuk dashboard.
+ * Contoh: GET {WEB_APP_URL}?action=summary
+ */
+function doGet(e) {
+  try {
+    const action = (e && e.parameter && e.parameter.action) || 'summary';
+    if (action === 'summary') {
+      return jsonOutput_(getSummary_());
+    }
+    return jsonOutput_({ status: 'error', message: 'Action tidak dikenali: ' + action });
+  } catch (err) {
+    return jsonOutput_({ status: 'error', message: err.message });
+  }
+}
+
+/**
+ * Menghitung agregasi persentase rating (1-5) per divisi, dari seluruh baris
+ * yang tersimpan di sheet "Responses". Dipanggil oleh dashboard.
+ */
+function getSummary_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const result = {};
+  DIVISI_KEYS.forEach(function (k) {
+    result[k] = { count: 0, ratings: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+  });
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return withPercent_(result);
+  }
+
+  // Kolom: Timestamp | ResponseID | Unit | Role | Divisi | Aspek | Pertanyaan | Rating
+  const lastRow = sheet.getLastRow();
+  const values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+
+  values.forEach(function (row) {
+    const divisiRaw = row[4];
+    const rating = Number(row[7]);
+    const key = divisiKeyFromLabel_(divisiRaw);
+    if (key && result[key] && rating >= 1 && rating <= 5) {
+      result[key].count += 1;
+      result[key].ratings[rating] += 1;
+    }
+  });
+
+  return withPercent_(result);
+}
+
+function divisiKeyFromLabel_(label) {
+  if (!label) return null;
+  for (var i = 0; i < DIVISI_KEYS.length; i++) {
+    if (String(label).indexOf(DIVISI_KEYS[i]) !== -1) return DIVISI_KEYS[i];
+  }
+  return null;
+}
+
+function withPercent_(result) {
+  Object.keys(result).forEach(function (k) {
+    const r = result[k];
+    r.percent = {};
+    for (var i = 1; i <= 5; i++) {
+      r.percent[i] = r.count > 0 ? Math.round((r.ratings[i] / r.count) * 1000) / 10 : 0;
+    }
+  });
+  return result;
+}
+
+function getOrCreateResponseSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+  }
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, 8).setValues([[
+      'Timestamp', 'Response ID', 'Unit Kerja', 'Level Jabatan', 'Divisi', 'Aspek', 'Pertanyaan', 'Rating'
+    ]]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+/**
+ * Selalu keluarkan JSON lewat ContentService (bukan HtmlService), dan jangan
+ * menambahkan header kustom apapun pada response — Apps Script tidak
+ * mengizinkan setHeader() bebas pada ContentService, dan menambahkannya
+ * lewat cara lain justru bisa memicu masalah CORS baru.
+ */
+function jsonOutput_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Fungsi bantu opsional: jalankan manual dari editor Apps Script untuk
+ * menguji koneksi & melihat hasil agregasi di Logger tanpa perlu deploy.
+ */
+function testSummary() {
+  Logger.log(JSON.stringify(getSummary_(), null, 2));
+}
