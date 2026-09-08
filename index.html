@@ -187,6 +187,19 @@
 
   .ticks{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-soft);margin-top:10px;padding-right:212px;}
 
+  /* ---------- Choice-type question (pilihan waktu) ---------- */
+  .choice-block{width:100%;max-width:640px;margin:0 auto;}
+  .choice-options{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;}
+  .choice-option{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:12px 20px;border:1px solid var(--line);border-radius:2px;
+    background:#fff;cursor:pointer;font-size:14.5px;color:var(--ink);
+    transition:border-color .15s, background .15s, color .15s;
+  }
+  .choice-option:hover{border-color:var(--navy);}
+  .choice-option input{accent-color:var(--teal);margin:0;}
+  .choice-option.selected{border-color:var(--teal);background:var(--teal-soft);color:var(--navy);font-weight:600;}
+
   /* ---------- Feedback (alasan & solusi) block ---------- */
   .feedback-wrap{
     max-width:640px;margin:22px auto 0;text-align:left;
@@ -273,6 +286,19 @@
   .btn-ghost:hover{border-color:var(--navy);color:var(--navy);}
 
   .dash-body{padding:36px 0 70px;}
+
+  /* ---------- Dashboard: sub-tabs (Kepuasan / Waktu Respons / Catatan) ---------- */
+  .dash-subnav{display:flex;gap:0;margin-top:28px;border-bottom:1px solid var(--line);}
+  .dash-subnav-btn{
+    background:transparent;border:none;border-bottom:2px solid transparent;
+    padding:12px 4px;margin-right:28px;font-size:14.5px;color:var(--ink-soft);
+    cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;
+  }
+  .dash-subnav-btn:hover{color:var(--navy);}
+  .dash-subnav-btn.active{color:var(--navy);border-bottom-color:var(--gold);}
+  .dash-view{display:none;}
+  .dash-view.active{display:block;}
+
   .division-card{
     background:#fff;border:1px solid var(--line);margin-bottom:26px;
   }
@@ -311,10 +337,48 @@
   .feedback-item .fi-meta{
     font-size:12px;color:var(--ink-soft);margin-bottom:7px;display:flex;gap:12px;flex-wrap:wrap;
   }
+  .feedback-item .fi-divisi{font-weight:700;color:var(--navy);}
   .feedback-item .fi-rating{font-weight:600;color:var(--danger);}
   .feedback-item .fi-q{font-size:13.5px;color:var(--navy);margin:0 0 6px;font-weight:600;}
   .feedback-item .fi-text{font-size:14px;color:var(--ink);line-height:1.55;white-space:pre-wrap;}
   .feedback-empty{font-size:13.5px;color:var(--ink-soft);padding:4px 0;}
+
+  /* ---------- Dashboard: waktu respons (pertanyaan pilihan) ---------- */
+  .waktu-card{background:#fff;border:1px solid var(--line);margin-bottom:26px;}
+  .waktu-card-head{padding:20px 26px;border-bottom:1px solid var(--line);}
+  .waktu-card-head h3{margin:0;font-size:23px;color:var(--navy);}
+  .waktu-card-head .full-name{font-size:13.5px;color:var(--ink-soft);}
+  .waktu-question{padding:24px 30px;border-top:1px solid var(--line);}
+  .waktu-question:first-child{border-top:none;}
+  .waktu-question h4{margin:0 0 3px;font-size:15px;color:var(--navy);}
+  .waktu-question .wq-count{font-size:12.5px;color:var(--ink-soft);margin:0 0 16px;}
+
+  /* ---------- Dashboard: catatan perbaikan (standalone, dengan filter/cari/paging) ---------- */
+  .feedback-controls{
+    display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;
+    margin:0 0 22px;
+  }
+  .feedback-filters{display:flex;gap:8px;flex-wrap:wrap;}
+  .feedback-filter-btn{
+    background:#fff;border:1px solid var(--line);color:var(--ink-soft);
+    padding:8px 16px;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;
+  }
+  .feedback-filter-btn:hover{border-color:var(--navy);}
+  .feedback-filter-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .feedback-search{
+    flex:1;min-width:220px;max-width:340px;padding:9px 12px;border:1px solid var(--line);
+    font-family:'Inter',sans-serif;font-size:13.5px;background:#fff;
+  }
+  .feedback-search:focus{outline:none;border-color:var(--navy);}
+  .feedback-count-note{font-size:13px;color:var(--ink-soft);margin:0 0 16px;}
+  .feedback-pagination{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:26px;}
+  .feedback-pagination button{
+    background:#fff;border:1px solid var(--line);padding:8px 14px;font-size:13px;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .feedback-pagination button:hover:not(:disabled){border-color:var(--navy);}
+  .feedback-pagination button:disabled{opacity:.4;cursor:not-allowed;}
+  .feedback-pagination .page-note{font-size:13px;color:var(--ink-soft);}
 
   .empty-note{padding:60px 20px;text-align:center;color:var(--ink-soft);font-size:14px;}
 
@@ -432,7 +496,7 @@
 
       <div class="review-summary">
         <h3>Ringkasan jawaban</h3>
-        <p>20 pertanyaan pada 3 sesi telah Anda isi.</p>
+        <p id="review-total-note"></p>
         <div class="review-grid" id="review-grid"></div>
       </div>
 
@@ -475,7 +539,7 @@
       <div>
         <div class="eyebrow" style="margin-bottom:8px;"><span class="rule"></span>DASHBOARD HASIL</div>
         <h1>Hasil Survei Customer Experience</h1>
-        <p>Distribusi persentase penilaian, dikelompokkan per divisi.</p>
+        <p>Skor kepuasan, waktu respons, dan catatan perbaikan — masing-masing pada tab terpisah.</p>
       </div>
       <div class="dash-actions">
         <button class="btn-ghost" id="btn-refresh">Muat ulang data</button>
@@ -483,8 +547,28 @@
       </div>
     </div>
 
-    <div class="dash-body" id="dash-body">
-      <div class="empty-note">Memuat data…</div>
+    <div class="dash-subnav" id="dash-subnav">
+      <button class="dash-subnav-btn active" data-dashview="rating">Kepuasan (Rating)</button>
+      <button class="dash-subnav-btn" data-dashview="waktu">Waktu Respons</button>
+      <button class="dash-subnav-btn" data-dashview="feedback">Catatan Perbaikan</button>
+    </div>
+
+    <div class="dash-view active" id="dash-view-rating">
+      <div class="dash-body" id="dash-body">
+        <div class="empty-note">Memuat data…</div>
+      </div>
+    </div>
+
+    <div class="dash-view" id="dash-view-waktu">
+      <div class="dash-body" id="dash-body-waktu">
+        <div class="empty-note">Memuat data…</div>
+      </div>
+    </div>
+
+    <div class="dash-view" id="dash-view-feedback">
+      <div class="dash-body" id="dash-body-feedback">
+        <div class="empty-note">Memuat data…</div>
+      </div>
     </div>
   </div>
 </div>
@@ -496,7 +580,7 @@
    Google Apps Script (lihat Code.gs & README yang disertakan).
    ========================================================================= */
 const CONFIG = {
-  GAS_URL: "https://script.google.com/macros/s/AKfycbyJwwL5Sa68upczN9kSnhHW2PKcBL75dX_f5hrHI63pmMB0oDBQFIrxvqRhBIReNRkK/exec",
+  GAS_URL: "https://script.google.com/macros/s/AKfycbyw758k5IB6yi4BzR5oqlhVJdd1LKYfijrBG1EVihCJ2qu6HiaZGUnFoxDhQD4g1d2D/exec",
   DASH_USER: "hcc",
   DASH_PASS: "2026"
 };
@@ -511,6 +595,8 @@ const SESSIONS = [
     tag: "SESI 1 DARI 3",
     intro: "Penilaian atas layanan Finance dan Manajemen Risiko dalam mendukung kebutuhan transaksi, pembayaran, dan pengelolaan risiko operasional.",
     questions: [
+      { type: "choice", aspek: "Waktu Respons Saat Ini", teks: "Berapa lama waktu yang dibutuhkan Divisi Finance dalam merespons dan memproses kebutuhan transaksi/permintaan pembayaran Anda selama ini?", opsi: ["1 minggu","2 minggu","3 minggu","4 minggu"] },
+      { type: "choice", aspek: "Ekspektasi Waktu Penyelesaian", teks: "Berapa lama waktu penyelesaian yang Anda harapkan untuk proses kebutuhan transaksi/permintaan pembayaran oleh Divisi Finance?", opsi: ["1 minggu","2 minggu","3 minggu","4 minggu"] },
       { aspek: "Kecepatan Layanan", teks: "Seberapa puas Anda terhadap kecepatan Divisi Finance dalam merespons dan memproses kebutuhan transaksi/permintaan pembayaran?" },
       { aspek: "Ketepatan Waktu Pembayaran", teks: "Seberapa puas Anda terhadap ketepatan waktu penyelesaian pembayaran sesuai dengan jadwal dan ketentuan yang telah disepakati?" },
       { aspek: "Komunikasi & Responsivitas", teks: "Seberapa puas Anda terhadap kemudahan komunikasi, responsivitas, dan kejelasan informasi yang diberikan oleh Divisi Finance?" },
@@ -527,6 +613,8 @@ const SESSIONS = [
     tag: "SESI 2 DARI 3",
     intro: "Penilaian atas layanan pengadaan, logistik, dan pengelolaan barang/jasa dalam mendukung kebutuhan operasional.",
     questions: [
+      { type: "choice", aspek: "Waktu Respons Saat Ini", teks: "Berapa lama waktu yang dibutuhkan Divisi PLM dalam merespons dan memproses kebutuhan pengadaan/pemenuhan barang atau jasa Anda selama ini?", opsi: ["1 minggu","2 minggu","3 minggu","4 minggu"] },
+      { type: "choice", aspek: "Ekspektasi Waktu Penyelesaian", teks: "Berapa lama waktu penyelesaian yang Anda harapkan untuk proses kebutuhan pengadaan/pemenuhan barang atau jasa oleh Divisi PLM?", opsi: ["1 minggu","2 minggu","3 minggu","4 minggu"] },
       { aspek: "Responsivitas", teks: "Seberapa puas Anda terhadap kecepatan dan responsivitas Divisi PLM dalam menanggapi kebutuhan, permintaan, dan permasalahan yang disampaikan?" },
       { aspek: "Ketepatan Pemenuhan Kebutuhan", teks: "Seberapa puas Anda terhadap ketepatan pemenuhan kebutuhan barang/jasa sesuai spesifikasi, jumlah, dan permintaan yang diajukan?" },
       { aspek: "Ketepatan Waktu", teks: "Seberapa puas Anda terhadap ketepatan waktu proses pengadaan, penyediaan, dan pengiriman barang/jasa sesuai kebutuhan dan jadwal yang telah disepakati?" },
@@ -541,6 +629,8 @@ const SESSIONS = [
     tag: "SESI 3 DARI 3",
     intro: "Penilaian atas layanan kepegawaian, penggajian, pengembangan kompetensi, dan kepatuhan.",
     questions: [
+      { type: "choice", aspek: "Waktu Respons Saat Ini", teks: "Berapa lama waktu yang dibutuhkan Divisi HCC dalam merespons dan memproses kebutuhan administrasi/kepegawaian Anda selama ini?", opsi: ["1 minggu","2 minggu","3 minggu","4 minggu"] },
+      { type: "choice", aspek: "Ekspektasi Waktu Penyelesaian", teks: "Berapa lama waktu penyelesaian yang Anda harapkan untuk proses kebutuhan administrasi/kepegawaian oleh Divisi HCC?", opsi: ["1 minggu","2 minggu","3 minggu","4 minggu"] },
       { aspek: "Recruitment", teks: "Seberapa puas Anda terhadap proses rekrutmen Human Capital dalam memenuhi kebutuhan tenaga kerja secara tepat, transparan, dan sesuai dengan kebutuhan unit kerja?" },
       { aspek: "Kepegawaian", teks: "Seberapa puas Anda terhadap ketepatan dan kecepatan layanan Human Capital dalam menangani administrasi serta kebutuhan kepegawaian?" },
       { aspek: "Penggajian", teks: "Seberapa puas Anda terhadap ketepatan waktu, ketepatan perhitungan, serta kejelasan informasi dalam proses penggajian dan administrasi terkait?" },
@@ -553,6 +643,24 @@ const SESSIONS = [
 
 const RATING_LABELS = { 1:"Sangat Tidak Puas", 2:"Tidak Puas", 3:"Cukup Puas", 4:"Puas", 5:"Sangat Puas" };
 const RATING_COLORS = { 1:"var(--r1)", 2:"var(--r2)", 3:"var(--r3)", 4:"var(--r4)", 5:"var(--r5)" };
+
+// Untuk pertanyaan waktu respons: makin cepat (1 minggu) = makin baik (teal),
+// makin lama (4 minggu) = makin perlu perhatian (merah) — pakai palet yang sama
+// dengan skala kepuasan supaya konsisten secara visual.
+const WAKTU_OPTIONS = ["1 minggu","2 minggu","3 minggu","4 minggu"];
+const WAKTU_COLORS = { "1 minggu":"var(--r5)", "2 minggu":"var(--r4)", "3 minggu":"var(--r2)", "4 minggu":"var(--r1)" };
+const WAKTU_ASPEKS = ["Waktu Respons Saat Ini", "Ekspektasi Waktu Penyelesaian"];
+
+/* ---------------- Dashboard sub-tab navigation ---------------- */
+document.querySelectorAll(".dash-subnav-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".dash-subnav-btn").forEach(b=>b.classList.toggle("active", b===btn));
+    const target = btn.dataset.dashview;
+    document.getElementById("dash-view-rating").classList.toggle("active", target==="rating");
+    document.getElementById("dash-view-waktu").classList.toggle("active", target==="waktu");
+    document.getElementById("dash-view-feedback").classList.toggle("active", target==="feedback");
+  });
+});
 
 let currentSession = 0; // 0..2, 3 = review
 const answers = {}; // key: "FRM-0" -> rating
@@ -598,6 +706,28 @@ function renderSession(idx){
   const qHtml = s.questions.map((q,i)=>{
     const id = `${s.key}-${i}`;
     const current = answers[id];
+
+    if(q.type === "choice"){
+      const optsHtml = q.opsi.map(opt=>{
+        const checked = current===opt;
+        return `<label class="choice-option ${checked?'selected':''}">
+          <input type="radio" name="choice-${id}" value="${escapeHtml(opt)}" data-id="${id}" ${checked?'checked':''}>
+          <span>${opt}</span>
+        </label>`;
+      }).join("");
+      return `
+      <div class="question">
+        <div class="q-meta">
+          <span class="q-aspect">${q.aspek}</span>
+          <span class="q-index">${i+1} / ${s.questions.length}</span>
+        </div>
+        <p class="q-text">${q.teks}</p>
+        <div class="choice-block">
+          <div class="choice-options" data-choice-group="${id}">${optsHtml}</div>
+        </div>
+      </div>`;
+    }
+
     const showFb = current && current<=2;
     return `
     <div class="question">
@@ -659,6 +789,19 @@ function renderSession(idx){
     });
   });
 
+  container.querySelectorAll('.choice-options input[type="radio"]').forEach(radio=>{
+    radio.addEventListener("change", e=>{
+      const id = e.target.dataset.id;
+      answers[id] = e.target.value;
+      const group = container.querySelector(`[data-choice-group="${id}"]`);
+      if(group){
+        group.querySelectorAll(".choice-option").forEach(opt=>opt.classList.remove("selected"));
+        e.target.closest(".choice-option").classList.add("selected");
+      }
+      updateProgress(idx);
+    });
+  });
+
   container.querySelectorAll(".feedback-wrap textarea").forEach(ta=>{
     ta.addEventListener("input", e=>{
       feedbackTexts[e.target.dataset.fbId] = e.target.value;
@@ -696,10 +839,11 @@ function renderSession(idx){
 /* ---------------- Feedback validation helpers ---------------- */
 function getMissingFeedbackIds(sessionIdx){
   const s = SESSIONS[sessionIdx];
-  return s.questions.map((q,i)=>`${s.key}-${i}`).filter(id=>{
+  return s.questions.map((q,i)=>({q,id:`${s.key}-${i}`})).filter(({q,id})=>{
+    if(q.type === "choice") return false;
     const val = answers[id];
     return val && val<=2 && !(feedbackTexts[id] && feedbackTexts[id].trim().length>0);
-  });
+  }).map(({id})=>id);
 }
 function getAllMissingFeedbackIds(){
   let missing = [];
@@ -732,14 +876,21 @@ function goToReview(){
   document.getElementById("session-container").style.display = "none";
   document.getElementById("review-panel").style.display = "block";
 
+  const totalQ = SESSIONS.reduce((n,s)=>n+s.questions.length,0);
+  document.getElementById("review-total-note").textContent = `${totalQ} pertanyaan pada ${SESSIONS.length} sesi telah Anda isi.`;
+
   const grid = document.getElementById("review-grid");
   grid.innerHTML = SESSIONS.map(s=>{
-    const vals = s.questions.map((q,i)=>answers[`${s.key}-${i}`]||0);
-    const answeredCount = vals.filter(v=>v>0).length;
-    const avg = answeredCount ? (vals.reduce((a,b)=>a+b,0)/answeredCount).toFixed(1) : "–";
+    const allAnsweredCount = s.questions.filter((q,i)=>answers[`${s.key}-${i}`]).length;
+    const ratingVals = s.questions
+      .map((q,i)=>({q, val: answers[`${s.key}-${i}`]}))
+      .filter(({q})=>q.type!=="choice")
+      .map(({val})=>val||0);
+    const ratingAnsweredCount = ratingVals.filter(v=>v>0).length;
+    const avg = ratingAnsweredCount ? (ratingVals.reduce((a,b)=>a+b,0)/ratingAnsweredCount).toFixed(1) : "–";
     return `<div class="review-cell">
       <div class="n">${avg}</div>
-      <div class="l">${s.key} · rata-rata (${answeredCount}/${s.questions.length} terjawab)</div>
+      <div class="l">${s.key} · rata-rata (${allAnsweredCount}/${s.questions.length} terjawab)</div>
     </div>`;
   }).join("");
 
@@ -854,32 +1005,41 @@ document.getElementById("btn-refresh").addEventListener("click", loadDashboard);
 /* ---------------- Dashboard: load & render data ---------------- */
 async function loadDashboard(){
   const body = document.getElementById("dash-body");
+  const bodyWaktu = document.getElementById("dash-body-waktu");
+  const bodyFeedback = document.getElementById("dash-body-feedback");
   body.innerHTML = `<div class="empty-note">Memuat data dari spreadsheet…</div>`;
+  bodyWaktu.innerHTML = `<div class="empty-note">Memuat data dari spreadsheet…</div>`;
+  bodyFeedback.innerHTML = `<div class="empty-note">Memuat data dari spreadsheet…</div>`;
 
   if(CONFIG.GAS_URL.indexOf("PASTE_URL") !== -1){
-    body.innerHTML = `<div class="empty-note">Konfigurasi belum lengkap: isi GAS_URL pada index.html dengan URL Web App Apps Script Anda, lalu klik "Muat ulang data".</div>`;
+    const msg = `<div class="empty-note">Konfigurasi belum lengkap: isi GAS_URL pada index.html dengan URL Web App Apps Script Anda, lalu klik "Muat ulang data".</div>`;
+    body.innerHTML = msg; bodyWaktu.innerHTML = msg; bodyFeedback.innerHTML = msg;
     return;
   }
 
   try{
     // GET request tanpa custom header = simple request, tidak memicu preflight.
-    const [resSummary, resFeedback] = await Promise.all([
+    const [resSummary, resWaktu, resFeedback] = await Promise.all([
       fetch(CONFIG.GAS_URL + "?action=summary"),
+      fetch(CONFIG.GAS_URL + "?action=waktu"),
       fetch(CONFIG.GAS_URL + "?action=feedback")
     ]);
     const data = await resSummary.json();
+    const waktuData = await resWaktu.json();
     const feedbackData = await resFeedback.json();
-    renderDashboard(data, feedbackData);
+    renderDashboard(data);
+    renderWaktuDashboard(waktuData);
+    initFeedbackDashboard(feedbackData);
   }catch(err){
-    body.innerHTML = `<div class="empty-note">Gagal memuat data: ${err.message}</div>`;
+    const msg = `<div class="empty-note">Gagal memuat data: ${err.message}</div>`;
+    body.innerHTML = msg; bodyWaktu.innerHTML = msg; bodyFeedback.innerHTML = msg;
   }
 }
 
-function renderDashboard(data, feedbackData){
+function renderDashboard(data){
   const body = document.getElementById("dash-body");
   const names = { FRM: "Finance & Risk Management", PLM: "Procurement, Logistic & Manage Service", HCC: "Human Capital & Compliance" };
   const order = ["FRM","PLM","HCC"];
-  feedbackData = feedbackData || {};
 
   body.innerHTML = order.map(key=>{
     const d = data[key] || { count:0, ratings:{1:0,2:0,3:0,4:0,5:0}, percent:{1:0,2:0,3:0,4:0,5:0} };
@@ -893,23 +1053,6 @@ function renderDashboard(data, feedbackData){
       </div>`;
     }).join("");
 
-    const fbList = feedbackData[key] || [];
-    const fbHtml = fbList.length ? fbList.map(item=>{
-      const ratingNum = Number(item.rating);
-      const ratingLbl = RATING_LABELS[ratingNum] || item.rating || "";
-      const when = item.timestamp ? new Date(item.timestamp).toLocaleString("id-ID", {dateStyle:"medium", timeStyle:"short"}) : "";
-      return `<div class="feedback-item">
-        <div class="fi-meta">
-          ${when ? `<span>${escapeHtml(when)}</span>` : ""}
-          <span>${escapeHtml(item.unit || "Unit tidak diisi")}</span>
-          ${item.role ? `<span>${escapeHtml(item.role)}</span>` : ""}
-          <span class="fi-rating">${escapeHtml(ratingLbl)}</span>
-        </div>
-        <p class="fi-q">${escapeHtml(item.aspek || "")}</p>
-        <div class="fi-text">${escapeHtml(item.catatan || "")}</div>
-      </div>`;
-    }).join("") : `<div class="feedback-empty">Belum ada catatan perbaikan untuk divisi ini.</div>`;
-
     return `<div class="division-card">
       <div class="division-card-head">
         <div>
@@ -922,22 +1065,159 @@ function renderDashboard(data, feedbackData){
         </div>
       </div>
       <div class="dist-body">${rows}</div>
-      <div class="feedback-toggle" data-target="fb-panel-${key}">
-        <span>Catatan Perbaikan dari nilai Tidak Puas / Sangat Tidak Puas (${fbList.length})</span>
-        <span class="fb-arrow">▾</span>
-      </div>
-      <div class="feedback-panel" id="fb-panel-${key}">${fbHtml}</div>
     </div>`;
   }).join("");
+}
 
-  body.querySelectorAll(".feedback-toggle").forEach(t=>{
-    t.addEventListener("click", ()=>{
-      const panel = document.getElementById(t.dataset.target);
-      if(!panel) return;
-      const open = panel.classList.toggle("show");
-      t.classList.toggle("open", open);
+/* ---------------- Dashboard: Waktu Respons (tab terpisah) ---------------- */
+function renderWaktuDashboard(data){
+  const body = document.getElementById("dash-body-waktu");
+  const names = { FRM: "Finance & Risk Management", PLM: "Procurement, Logistic & Manage Service", HCC: "Human Capital & Compliance" };
+  const order = ["FRM","PLM","HCC"];
+  data = data || {};
+
+  body.innerHTML = order.map(key=>{
+    const divisiData = data[key] || {};
+    const qHtml = WAKTU_ASPEKS.map(aspek=>{
+      const item = divisiData[aspek] || { count:0, options:{}, percent:{} };
+      const rows = WAKTU_OPTIONS.map(opt=>{
+        const pct = item.percent ? (item.percent[opt]||0) : 0;
+        const n = item.options ? (item.options[opt]||0) : 0;
+        return `<div class="dist-row">
+          <div class="dist-label">${opt}</div>
+          <div class="dist-track"><div class="dist-fill" style="width:${pct}%; background:${WAKTU_COLORS[opt]};"></div></div>
+          <div class="dist-pct">${pct}% (${n})</div>
+        </div>`;
+      }).join("");
+      return `<div class="waktu-question">
+        <h4>${aspek}</h4>
+        <p class="wq-count">${item.count||0} jawaban tercatat</p>
+        ${rows}
+      </div>`;
+    }).join("");
+
+    return `<div class="waktu-card">
+      <div class="waktu-card-head">
+        <h3>${key}</h3>
+        <div class="full-name">${names[key]}</div>
+      </div>
+      ${qHtml}
+    </div>`;
+  }).join("");
+}
+
+/* ---------------- Dashboard: Catatan Perbaikan (tab terpisah, cari + filter + paging) ---------------- */
+const FEEDBACK_PAGE_SIZE = 10;
+let feedbackAllItems = [];
+let feedbackDivisiFilter = "ALL";
+let feedbackSearchTerm = "";
+let feedbackPage = 1;
+
+function initFeedbackDashboard(feedbackData){
+  feedbackData = feedbackData || {};
+  const order = ["FRM","PLM","HCC"];
+  feedbackAllItems = [];
+  order.forEach(key=>{
+    (feedbackData[key]||[]).forEach(item=>{ feedbackAllItems.push(Object.assign({divisiKey:key}, item)); });
+  });
+  // Terbaru dahulu di seluruh divisi.
+  feedbackAllItems.sort((a,b)=> new Date(b.timestamp||0) - new Date(a.timestamp||0));
+
+  feedbackDivisiFilter = "ALL";
+  feedbackSearchTerm = "";
+  feedbackPage = 1;
+
+  const body = document.getElementById("dash-body-feedback");
+  body.innerHTML = `
+    <div class="feedback-controls">
+      <div class="feedback-filters" id="feedback-filters">
+        <button class="feedback-filter-btn active" data-filter="ALL">Semua Divisi</button>
+        <button class="feedback-filter-btn" data-filter="FRM">FRM</button>
+        <button class="feedback-filter-btn" data-filter="PLM">PLM</button>
+        <button class="feedback-filter-btn" data-filter="HCC">HCC</button>
+      </div>
+      <input type="text" class="feedback-search" id="feedback-search" placeholder="Cari catatan, unit, atau aspek…">
+    </div>
+    <p class="feedback-count-note" id="feedback-count-note"></p>
+    <div id="feedback-list"></div>
+    <div class="feedback-pagination" id="feedback-pagination"></div>
+  `;
+
+  body.querySelectorAll(".feedback-filter-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      body.querySelectorAll(".feedback-filter-btn").forEach(b=>b.classList.toggle("active", b===btn));
+      feedbackDivisiFilter = btn.dataset.filter;
+      feedbackPage = 1;
+      renderFeedbackList();
     });
   });
+
+  let searchDebounce;
+  document.getElementById("feedback-search").addEventListener("input", e=>{
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(()=>{
+      feedbackSearchTerm = e.target.value.trim().toLowerCase();
+      feedbackPage = 1;
+      renderFeedbackList();
+    }, 200);
+  });
+
+  renderFeedbackList();
+}
+
+function renderFeedbackList(){
+  const listEl = document.getElementById("feedback-list");
+  const countEl = document.getElementById("feedback-count-note");
+  const pagerEl = document.getElementById("feedback-pagination");
+  if(!listEl) return;
+
+  let filtered = feedbackAllItems.filter(item=>{
+    if(feedbackDivisiFilter !== "ALL" && item.divisiKey !== feedbackDivisiFilter) return false;
+    if(feedbackSearchTerm){
+      const hay = `${item.catatan||""} ${item.unit||""} ${item.role||""} ${item.aspek||""}`.toLowerCase();
+      if(hay.indexOf(feedbackSearchTerm) === -1) return false;
+    }
+    return true;
+  });
+
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / FEEDBACK_PAGE_SIZE));
+  feedbackPage = Math.min(feedbackPage, totalPages);
+  const start = (feedbackPage-1) * FEEDBACK_PAGE_SIZE;
+  const pageItems = filtered.slice(start, start + FEEDBACK_PAGE_SIZE);
+
+  countEl.textContent = `${total} catatan ditemukan (dari total ${feedbackAllItems.length} catatan di seluruh divisi).`;
+
+  listEl.innerHTML = pageItems.length ? pageItems.map(item=>{
+    const ratingNum = Number(item.rating);
+    const ratingLbl = RATING_LABELS[ratingNum] || item.rating || "";
+    const when = item.timestamp ? new Date(item.timestamp).toLocaleString("id-ID", {dateStyle:"medium", timeStyle:"short"}) : "";
+    return `<div class="feedback-item">
+      <div class="fi-meta">
+        <span class="fi-divisi">${escapeHtml(item.divisiKey||"")}</span>
+        ${when ? `<span>${escapeHtml(when)}</span>` : ""}
+        <span>${escapeHtml(item.unit || "Unit tidak diisi")}</span>
+        ${item.role ? `<span>${escapeHtml(item.role)}</span>` : ""}
+        <span class="fi-rating">${escapeHtml(ratingLbl)}</span>
+      </div>
+      <p class="fi-q">${escapeHtml(item.aspek || "")}</p>
+      <div class="fi-text">${escapeHtml(item.catatan || "")}</div>
+    </div>`;
+  }).join("") : `<div class="feedback-empty">Tidak ada catatan yang cocok dengan filter/pencarian saat ini.</div>`;
+
+  if(total > FEEDBACK_PAGE_SIZE){
+    pagerEl.innerHTML = `
+      <button id="fb-page-prev" ${feedbackPage<=1?"disabled":""}>← Sebelumnya</button>
+      <span class="page-note">Halaman ${feedbackPage} dari ${totalPages}</span>
+      <button id="fb-page-next" ${feedbackPage>=totalPages?"disabled":""}>Berikutnya →</button>
+    `;
+    const prevBtn = document.getElementById("fb-page-prev");
+    const nextBtn = document.getElementById("fb-page-next");
+    if(prevBtn) prevBtn.addEventListener("click", ()=>{ feedbackPage--; renderFeedbackList(); });
+    if(nextBtn) nextBtn.addEventListener("click", ()=>{ feedbackPage++; renderFeedbackList(); });
+  } else {
+    pagerEl.innerHTML = "";
+  }
 }
 
 /* ---------------- Init ---------------- */
