@@ -61,7 +61,7 @@ function doPost(e) {
     const role = data.role || '';
 
     const rows = data.answers.map(function (a) {
-      return [ts, respId, unit, role, a.divisi || '', a.aspek || '', a.pertanyaan || '', Number(a.rating) || ''];
+      return [ts, respId, unit, role, a.divisi || '', a.aspek || '', a.pertanyaan || '', normalizeRating_(a.rating)];
     });
 
     // Tulis sekaligus (lebih cepat & mengurangi risiko lock/race condition
@@ -106,6 +106,9 @@ function doGet(e) {
     if (action === 'feedback') {
       const divisiFilter = (e && e.parameter && e.parameter.divisi) || '';
       return jsonOutput_(getFeedbackList_(divisiFilter));
+    }
+    if (action === 'waktu') {
+      return jsonOutput_(getWaktuSummary_());
     }
     return jsonOutput_({ status: 'error', message: 'Action tidak dikenali: ' + action });
   } catch (err) {
@@ -191,6 +194,20 @@ function getFeedbackList_(divisiFilter) {
   return result;
 }
 
+/**
+ * Beberapa pertanyaan (mis. estimasi waktu respons "1 minggu".."4 minggu")
+ * bukan skala rating 1-5, melainkan pilihan teks. Fungsi ini menyimpan
+ * angka 1-5 sebagai Number seperti sebelumnya, tapi tidak membuang jawaban
+ * teks non-numerik seperti Number(a.rating) || '' yang lama (itu akan
+ * menghasilkan '' untuk nilai seperti "2 minggu").
+ */
+function normalizeRating_(rating) {
+  if (rating === undefined || rating === null || rating === '') return '';
+  const num = Number(rating);
+  if (!isNaN(num) && String(rating).trim() !== '') return num;
+  return String(rating).trim();
+}
+
 function divisiKeyFromLabel_(label) {
   if (!label) return null;
   for (var i = 0; i < DIVISI_KEYS.length; i++) {
@@ -257,6 +274,71 @@ function jsonOutput_(obj) {
  */
 function testSummary() {
   Logger.log(JSON.stringify(getSummary_(), null, 2));
+}
+
+/**
+ * Menghitung agregasi jawaban pertanyaan "waktu respons" (bukan skala 1-5,
+ * melainkan pilihan teks "1 minggu".."4 minggu"), per divisi dan per aspek
+ * (waktu respons saat ini vs ekspektasi waktu penyelesaian). Dipanggil oleh
+ * dashboard lewat GET {WEB_APP_URL}?action=waktu — ditampilkan sebagai
+ * dashboard terpisah dari skor kepuasan 1-5.
+ */
+const WAKTU_ASPEKS = ['Waktu Respons Saat Ini', 'Ekspektasi Waktu Penyelesaian'];
+const WAKTU_OPTIONS = ['1 minggu', '2 minggu', '3 minggu', '4 minggu'];
+
+function getWaktuSummary_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const result = {};
+  DIVISI_KEYS.forEach(function (k) {
+    result[k] = {};
+    WAKTU_ASPEKS.forEach(function (aspek) {
+      result[k][aspek] = { count: 0, options: {} };
+      WAKTU_OPTIONS.forEach(function (o) { result[k][aspek].options[o] = 0; });
+    });
+  });
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return withWaktuPercent_(result);
+  }
+
+  const lastRow = sheet.getLastRow();
+  // Kolom: Timestamp | ResponseID | Unit | Role | Divisi | Aspek | Pertanyaan | Rating
+  const values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+
+  values.forEach(function (row) {
+    const key = divisiKeyFromLabel_(row[4]);
+    const aspek = row[5];
+    if (!key || !result[key]) return;
+    if (WAKTU_ASPEKS.indexOf(aspek) === -1) return;
+    const valStr = String(row[7]).trim();
+    if (result[key][aspek].options.hasOwnProperty(valStr)) {
+      result[key][aspek].options[valStr] += 1;
+      result[key][aspek].count += 1;
+    }
+  });
+
+  return withWaktuPercent_(result);
+}
+
+function withWaktuPercent_(result) {
+  Object.keys(result).forEach(function (k) {
+    Object.keys(result[k]).forEach(function (aspek) {
+      const item = result[k][aspek];
+      item.percent = {};
+      WAKTU_OPTIONS.forEach(function (opt) {
+        item.percent[opt] = item.count > 0 ? Math.round((item.options[opt] / item.count) * 1000) / 10 : 0;
+      });
+    });
+  });
+  return result;
+}
+
+/**
+ * Fungsi bantu opsional: jalankan manual dari editor Apps Script untuk
+ * menguji hasil agregasi jawaban waktu respons.
+ */
+function testWaktu() {
+  Logger.log(JSON.stringify(getWaktuSummary_(), null, 2));
 }
 
 /**
