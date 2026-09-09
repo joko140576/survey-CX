@@ -1,0 +1,327 @@
+/**
+
+============================================================================
+
+CX SURVEY — FRM / PLM / HCC
+
+Backend Google Apps Script (database: Google Sheets)
+
+============================================================================
+*/
+
+const SHEET_NAME = 'Responses';
+const FEEDBACK_SHEET_NAME = 'Feedback';
+const SARAN_SHEET_NAME = 'SaranSolusi';
+const DIVISI_KEYS = ['FRM', 'PLM', 'HCC'];
+
+/**
+
+Menangani pengiriman jawaban survei
+*/
+function doPost(e) {
+try {
+if (!e || !e.postData || !e.postData.contents) {
+throw new Error('Tidak ada data yang dikirim.');
+}
+const data = JSON.parse(e.postData.contents);
+if (!data.answers || !Array.isArray(data.answers) || data.answers.length === 0) {
+throw new Error('Payload jawaban kosong atau tidak valid.');
+}
+
+const sheet = getOrCreateResponseSheet_();
+const ts = new Date();
+const respId = Utilities.getUuid();
+const unit = data.unit || '';
+const role = data.role || '';
+
+const rows = data.answers.map(function (a) {
+return [ts, respId, unit, role, a.divisi || '', a.aspek || '', a.pertanyaan || '', normalizeRating_(a.rating)];
+});
+
+const startRow = sheet.getLastRow() + 1;
+sheet.getRange(startRow, 1, rows.length, rows[0].length).setValues(rows);
+
+// Simpan Catatan Perbaikan (jika rating <= 2)
+const feedbackRows = data.answers
+.filter(function (a) {
+const rating = Number(a.rating);
+const catatan = (a.catatan || '').toString().trim();
+return (rating === 1 || rating === 2) && catatan.length > 0;
+})
+.map(function (a) {
+return [ts, respId, unit, role, a.divisi || '', a.aspek || '', a.pertanyaan || '', Number(a.rating) || '', (a.catatan || '').toString().trim()];
+});
+
+if (feedbackRows.length > 0) {
+const fbSheet = getOrCreateFeedbackSheet_();
+const fbStartRow = fbSheet.getLastRow() + 1;
+fbSheet.getRange(fbStartRow, 1, feedbackRows.length, feedbackRows[0].length).setValues(feedbackRows);
+}
+
+// Simpan Saran, Masukan, atau Rekomendasi General
+const saranText = (data.saranSolusi || '').toString().trim();
+if (saranText.length > 0) {
+const saranSheet = getOrCreateSaranSheet_();
+const sStartRow = saranSheet.getLastRow() + 1;
+saranSheet.getRange(sStartRow, 1, 1, 5).setValues([[
+ts, respId, unit, role, saranText
+]]);
+}
+
+return jsonOutput_({ status: 'success', responseId: respId, saved: rows.length, feedbackSaved: feedbackRows.length });
+} catch (err) {
+return jsonOutput_({ status: 'error', message: err.message });
+}
+}
+
+/**
+
+Menangani permintaan data untuk dashboard
+*/
+function doGet(e) {
+try {
+const action = (e && e.parameter && e.parameter.action) || 'summary';
+if (action === 'summary') {
+return jsonOutput_(getSummary_());
+}
+if (action === 'feedback') {
+const divisiFilter = (e && e.parameter && e.parameter.divisi) || '';
+return jsonOutput_(getFeedbackList_(divisiFilter));
+}
+if (action === 'saran') {
+return jsonOutput_(getSaranList_());
+}
+if (action === 'pilihan') {
+return jsonOutput_(getPilihanSummary_());
+}
+return jsonOutput_({ status: 'error', message: 'Action tidak dikenali: ' + action });
+} catch (err) {
+return jsonOutput_({ status: 'error', message: err.message });
+}
+}
+
+/**
+
+Menghitung agregasi persentase rating (1-5) per divisi
+*/
+function getSummary_() {
+const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+const result = {};
+DIVISI_KEYS.forEach(function (k) {
+result[k] = { count: 0, ratings: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+});
+
+if (!sheet || sheet.getLastRow() < 2) {
+return withPercent_(result);
+}
+
+const lastRow = sheet.getLastRow();
+const values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+
+values.forEach(function (row) {
+const divisiRaw = row[4];
+const rating = Number(row[7]);
+const key = divisiKeyFromLabel_(divisiRaw);
+if (key && result[key] && rating >= 1 && rating <= 5) {
+result[key].count += 1;
+result[key].ratings[rating] += 1;
+}
+});
+
+return withPercent_(result);
+}
+
+/**
+
+Mengambil daftar Saran & Solusi general
+*/
+function getSaranList_() {
+const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SARAN_SHEET_NAME);
+const result = [];
+if (!sheet || sheet.getLastRow() < 2) {
+return result;
+}
+const lastRow = sheet.getLastRow();
+const values = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+values.forEach(function (row) {
+result.push({
+timestamp: row[0] instanceof Date ? row[0].toISOString() : row[0],
+responseId: row[1],
+unit: row[2],
+role: row[3],
+saran: row[4]
+});
+});
+result.sort(function (a, b) {
+return new Date(b.timestamp) - new Date(a.timestamp);
+});
+return result;
+}
+
+/**
+
+Mengambil catatan perbaikan
+*/
+function getFeedbackList_(divisiFilter) {
+const result = {};
+DIVISI_KEYS.forEach(function (k) { result[k] = []; });
+
+const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FEEDBACK_SHEET_NAME);
+if (!sheet || sheet.getLastRow() < 2) {
+return result;
+}
+
+const lastRow = sheet.getLastRow();
+const values = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+
+values.forEach(function (row) {
+const key = divisiKeyFromLabel_(row[4]);
+if (!key || !result[key]) return;
+if (divisiFilter && key !== divisiFilter) return;
+result[key].push({
+timestamp: row[0] instanceof Date ? row[0].toISOString() : row[0],
+responseId: row[1],
+unit: row[2],
+role: row[3],
+divisi: row[4],
+aspek: row[5],
+pertanyaan: row[6],
+rating: Number(row[7]) || row[7],
+catatan: row[8]
+});
+});
+
+Object.keys(result).forEach(function (k) {
+result[k].sort(function (a, b) {
+return new Date(b.timestamp) - new Date(a.timestamp);
+});
+});
+
+return result;
+}
+
+/**
+
+Mengambil jawaban pertanyaan pilihan
+*/
+function getPilihanSummary_() {
+const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+const result = {};
+DIVISI_KEYS.forEach(function (k) { result[k] = {}; });
+
+if (!sheet || sheet.getLastRow() < 2) {
+return result;
+}
+
+const lastRow = sheet.getLastRow();
+const values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+
+values.forEach(function (row) {
+const key = divisiKeyFromLabel_(row[4]);
+const aspek = row[5];
+const valStr = String(row[7]).trim();
+if (!key || !result[key]) return;
+
+// Jika nilai berupa teks non-angka (pilihan ganda)
+if (isNaN(Number(valStr))) {
+  if (!result[key][aspek]) {
+    result[key][aspek] = { count: 0, options: {} };
+  }
+  if (!result[key][aspek].options[valStr]) {
+    result[key][aspek].options[valStr] = 0;
+  }
+  result[key][aspek].options[valStr] += 1;
+  result[key][aspek].count += 1;
+}
+
+
+});
+
+Object.keys(result).forEach(function (k) {
+Object.keys(result[k]).forEach(function (aspek) {
+const item = result[k][aspek];
+item.percent = {};
+Object.keys(item.options).forEach(function (opt) {
+item.percent[opt] = item.count > 0 ? Math.round((item.options[opt] / item.count) * 1000) / 10 : 0;
+});
+});
+});
+
+return result;
+}
+
+function normalizeRating_(rating) {
+if (rating === undefined || rating === null || rating === '') return '';
+const num = Number(rating);
+if (!isNaN(num) && String(rating).trim() !== '') return num;
+return String(rating).trim();
+}
+
+function divisiKeyFromLabel_(label) {
+if (!label) return null;
+for (var i = 0; i < DIVISI_KEYS.length; i++) {
+if (String(label).indexOf(DIVISI_KEYS[i]) !== -1) return DIVISI_KEYS[i];
+}
+return null;
+}
+
+function withPercent_(result) {
+Object.keys(result).forEach(function (k) {
+const r = result[k];
+r.percent = {};
+for (var i = 1; i <= 5; i++) {
+r.percent[i] = r.count > 0 ? Math.round((r.ratings[i] / r.count) * 1000) / 10 : 0;
+}
+});
+return result;
+}
+
+function getOrCreateResponseSheet_() {
+const ss = SpreadsheetApp.getActiveSpreadsheet();
+let sheet = ss.getSheetByName(SHEET_NAME);
+if (!sheet) {
+sheet = ss.insertSheet(SHEET_NAME);
+}
+if (sheet.getLastRow() === 0) {
+sheet.getRange(1, 1, 1, 8).setValues([[
+'Timestamp', 'Response ID', 'Unit Kerja', 'Level Jabatan', 'Divisi', 'Aspek', 'Pertanyaan', 'Rating'
+]]);
+sheet.setFrozenRows(1);
+}
+return sheet;
+}
+
+function getOrCreateFeedbackSheet_() {
+const ss = SpreadsheetApp.getActiveSpreadsheet();
+let sheet = ss.getSheetByName(FEEDBACK_SHEET_NAME);
+if (!sheet) {
+sheet = ss.insertSheet(FEEDBACK_SHEET_NAME);
+}
+if (sheet.getLastRow() === 0) {
+sheet.getRange(1, 1, 1, 9).setValues([[
+'Timestamp', 'Response ID', 'Unit Kerja', 'Level Jabatan', 'Divisi', 'Aspek', 'Pertanyaan', 'Rating', 'Catatan (Alasan & Solusi)'
+]]);
+sheet.setFrozenRows(1);
+}
+return sheet;
+}
+
+function getOrCreateSaranSheet_() {
+const ss = SpreadsheetApp.getActiveSpreadsheet();
+let sheet = ss.getSheetByName(SARAN_SHEET_NAME);
+if (!sheet) {
+sheet = ss.insertSheet(SARAN_SHEET_NAME);
+}
+if (sheet.getLastRow() === 0) {
+sheet.getRange(1, 1, 1, 5).setValues([[
+'Timestamp', 'Response ID', 'Unit Kerja', 'Level Jabatan', 'Saran & Solusi'
+]]);
+sheet.setFrozenRows(1);
+}
+return sheet;
+}
+
+function jsonOutput_(obj) {
+return ContentService.createTextOutput(JSON.stringify(obj))
+.setMimeType(ContentService.MimeType.JSON);
+}
